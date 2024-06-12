@@ -4,7 +4,6 @@ import styled from "styled-components";
 const ScrollContainer = styled.div`
   position: relative;
   width: 100%;
-
   overflow: hidden; /* Hide default scrollbar */
   padding-right: 30px; /* Add padding to make room for buttons */
 `;
@@ -39,25 +38,25 @@ const Track = styled.div`
   justify-content: center;
 `;
 const ScrollButton = styled.div`
-position: absolute;
-right: 10px;
-width: 12px;
-height: 20px;
-color: #aaa;
-display: flex;
-align-items: center;
-justify-content: center;
-cursor: pointer;
-user-select: none;
-z-index: 1; /* Ensure buttons are above other elements */
-opacity: ${(props) =>
-  props.disabled ? 0.5 : 1}; /* Dim the button if disabled */
-pointer-events: ${(props) => (props.disabled ? "none" : "auto")}; /
-border-radius: 50%;
-transition: background 0.3s ease, color 0.3s ease;
-&:hover {
-  color: #0056b3;
-}
+  position: absolute;
+  right: 10px;
+  width: 12px;
+  height: 20px;
+  color: #aaa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  z-index: 1; /* Ensure buttons are above other elements */
+  opacity: ${(props) =>
+    props.disabled ? 0.5 : 1}; /* Dim the button if disabled */
+  pointer-events: ${(props) => (props.disabled ? "none" : "auto")};
+  border-radius: 50%;
+  transition: background 0.3s ease, color 0.3s ease;
+  &:hover {
+    color: #0056b3;
+  }
 `;
 
 const TopButton = styled(ScrollButton)`
@@ -92,9 +91,10 @@ const CustomScroll = React.forwardRef(
     const [thumbHeight, setThumbHeight] = useState(0);
     const [thumbTop, setThumbTop] = useState(0);
     const [isOverflowing, setIsOverflowing] = useState(false);
-    const scrollIntervalRef = useRef(null);
     const isDraggingRef = useRef(false);
     const clickTimeoutRef = useRef(null);
+
+    const scrollAnimationRef = useRef(null);
 
     const updateThumb = () => {
       const computedStyle = getComputedStyle(containerRef.current);
@@ -137,27 +137,11 @@ const CustomScroll = React.forwardRef(
       setIsOverflowing(isOverflowing);
     };
 
-    const startContinuousScroll = (direction) => {
-      if (scrollIntervalRef.current) {
-        clearInterval(scrollIntervalRef.current);
-      }
-
-      const content = contentRef.current;
-      scrollIntervalRef.current = setInterval(() => {
-        content.scrollTop += direction * 5; // Adjust the scroll amount as needed
-      }, 0); // Adjust the interval speed as needed
-    };
-
-    const stopContinuousScroll = () => {
-      if (scrollIntervalRef.current) {
-        clearInterval(scrollIntervalRef.current);
-      }
-    };
     useEffect(() => {
-      // const content = contentRef.current;
       if (scrolled.current) return;
       updateThumb();
     }, []);
+
     const handleSmoothScroll = (targetPosition, duration = 800) => {
       const content = contentRef.current;
       const startPosition = content.scrollTop;
@@ -181,6 +165,7 @@ const CustomScroll = React.forwardRef(
 
       requestAnimationFrame(animation);
     };
+
     useImperativeHandle(ref, () => ({
       scrollToTop: () => {
         contentRef.current.scrollTop = 0;
@@ -203,6 +188,7 @@ const CustomScroll = React.forwardRef(
         };
       },
     }));
+
     const handleThumbDrag = (event) => {
       const content = contentRef.current;
       const startY = event.clientY; // the initial vertical position (in pixels) of the mouse when the thumb is first clicked and held down
@@ -215,7 +201,6 @@ const CustomScroll = React.forwardRef(
 
         const x = (deltaY / thumbHeight) * content.clientHeight;
         content.scrollTop = startScrollTop + x * scrollSpeed;
-        //  content.scrollTop = startScrollTop + scrollDistance;
       };
 
       const onMouseUp = () => {
@@ -246,14 +231,41 @@ const CustomScroll = React.forwardRef(
       const content = contentRef.current;
       handleSmoothScroll(content.scrollTop + 70); // Adjust the scroll amount as needed
     };
+
+    const startContinuousScroll = (direction) => {
+      const scrollStep = () => {
+        const content = contentRef.current;
+        const scrollAmount = 5; // Adjust the scroll amount as needed
+        if (direction === -1) {
+          content.scrollTop = Math.max(content.scrollTop - scrollAmount, 0);
+        } else {
+          content.scrollTop = Math.min(
+            content.scrollTop + scrollAmount,
+            content.scrollHeight - content.clientHeight
+          );
+        }
+        //   updateThumb();
+        scrollAnimationRef.current = requestAnimationFrame(scrollStep);
+      };
+
+      scrollAnimationRef.current = requestAnimationFrame(scrollStep);
+    };
+
+    const stopContinuousScroll = () => {
+      if (scrollAnimationRef.current) {
+        cancelAnimationFrame(scrollAnimationRef.current);
+        scrollAnimationRef.current = null;
+      }
+    };
+
     const handleTrackClick = (event) => {
-      // alert("handleTrackClick");
       if (isDraggingRef.current) return;
       const track = event.currentTarget;
       const clickY = event.clientY - track.getBoundingClientRect().top;
       const scrollAmount = (clickY - thumbTop - thumbHeight / 2) * 1; // Adjust the factor to control the scroll speed
       handleSmoothScroll(contentRef.current.scrollTop + scrollAmount, 500);
     };
+
     return (
       <ScrollContainer ref={containerRef} style={style}>
         <TopButton
@@ -272,18 +284,13 @@ const CustomScroll = React.forwardRef(
           {children}
         </ScrollContent>
         <Track onClick={handleTrackClick}>
-          {" "}
           <Thumb
             ref={thumbRef}
             style={{ height: thumbHeight, top: thumbTop }}
             onMouseDown={handleThumbDrag}
-            onMouseUp={() => {
-              //    isDraggingRef.current = false;
-            }}
             hidden={!isOverflowing}
           />
         </Track>
-
         <BottomButton
           onMouseDown={() => startContinuousScroll(1)}
           onMouseUp={stopContinuousScroll}
